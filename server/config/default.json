@@ -1,0 +1,15 @@
+{
+    "PORT" : 5001,
+    "PRIVATE_KEY": "codeforindia",
+    "URL" : "http://34.100.248.67:5001",
+    "DB_URI": "mongodb+srv://zoheballadin:Eawkf0901@cluster0.fss2qpr.mongodb.net/scheduler?retryWrites=true&w=majority",
+    "JWT_SECRET": "zoheballadin",
+    "EMAIL" : {
+        "HOST": "mail.zoheb.me",
+        "AUTH": {
+            "USER": "info@zoheb.me",
+            "PASSWORD": "s={(XG!0}Xvq"
+        },
+        "PORT": 465
+    }
+}
