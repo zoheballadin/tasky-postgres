@@ -1,20 +1,22 @@
 import express from "express";
-import Task from "../../models/Tasks/index.js";
-import User from "../../models/Users/index.js";
+import Task from "../../models/postgres/Task.js";
+import User from "../../models/postgres/User.js";
 import { scheduleJob, scheduledJobs } from "node-schedule";
 import { isAuthenticated } from "../../middleware/auth/index.js";
 import scheduleReminders from "../../utils/scheduleReminders.js";
 import setReminders from "../../utils/setReminders.js";
 import { taskValidation, errorMiddleware } from "../../middleware/validations/index.js";
 const router = express.Router();
+
+
 router.post("/add", isAuthenticated,taskValidation(),errorMiddleware, async (req, res) => {
   try {
-    let findEmail = await User.findOne({ _id: req.payload.id });
+    let findEmail = await User.findOne({where: { _id: req.payload.id }});
     if (!findEmail) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     let id = findEmail._id;
-    
+    console.log(id)
     let { task_name, deadline } = req.body;
     console.log(deadline)
     
@@ -24,14 +26,14 @@ router.post("/add", isAuthenticated,taskValidation(),errorMiddleware, async (req
       return res.status(400).json({ error: "Invalid Date " });
     }
     let reminders = setReminders(deadline, current);
-
-    let task = new Task({
+    console.log("id: ***", id)
+    let saved = await Task.create({
       task_name,
       deadline,
       reminders,
       user: id,
     });
-    let saved = await task.save();
+    
 
     scheduleReminders(
       saved._id,
@@ -51,13 +53,13 @@ router.post("/add", isAuthenticated,taskValidation(),errorMiddleware, async (req
 router.put("/:task_id", isAuthenticated, async (req, res) => {
   try {
     let task_id = req.params.task_id;
-    let task = await Task.findOne({ _id: task_id });
+    let task = await Task.findOne({where: { _id: task_id }});
     if (!task) {
       return res.status(400).json({ error: "Task not found" });
     }
-    let user = await User.findOne({ _id: req.payload.id });
+    let user = await User.findOne({where:{ _id: req.payload.id }});
 
-    if (!user || !task.user.equals(user._id)) {
+    if (!user || task.user != user._id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     let { isCompleted, task_name, deadline } = req.body;
@@ -74,10 +76,11 @@ router.put("/:task_id", isAuthenticated, async (req, res) => {
         }
       }
       console.log(scheduledJobs);
-      await Task.updateOne(
-        { _id: task_id },
-        { $set: { isCompleted: true, task_name: task_name } }
-      );
+      // await Task.updateOne(
+      //   { _id: task_id },
+      //   { $set: { isCompleted: true, task_name: task_name } }
+      // );
+      await Task.update({isCompleted: true, task_name: task_name}, {where: {_id: task_id}})
       return res.status(200).json({ message: "Task completed" });
     }
 
@@ -109,21 +112,25 @@ router.put("/:task_id", isAuthenticated, async (req, res) => {
         reminders,
         new Date(deadline)
       );
-      await Task.updateOne(
-        { _id: task_id },
-        {
-          $set: {
-            task_name: task_name,
-            reminders: reminders,
-            deadline: new Date(deadline),
-          },
-        }
-      );
+      console.log(reminders)
+      // await Task.updateOne(
+      //   { _id: task_id },
+      //   {
+      //     $set: {
+      //       task_name: task_name,
+      //       reminders: reminders,
+      //       deadline: new Date(deadline),
+      //     },
+      //   }
+      // );
+      console.log(deadline)
+      await Task.update({task_name: task_name, reminders: reminders, deadline: deadline}, {where: {_id: task_id}})
       return res.status(200).json({ message: "Task updated successfully" });
     }
 
     //if we only want to update task name
-    await Task.updateOne({ _id: task_id }, { $set: { task_name: task_name } });
+    // await Task.updateOne({ _id: task_id }, { $set: { task_name: task_name } });
+    await Task.update({task_name: task_name}, {where: {_id: task_id}})
     return res.status(200).json({ message: "Task name updated successfully" });
   } catch (error) {
     console.log(error);
@@ -135,13 +142,13 @@ export default router;
 router.delete("/:task_id", isAuthenticated, async (req, res) => {
   try {
     let id = req.params.task_id;
-    let task = await Task.findOne({ _id: id });
-    let user = await User.findOne({ _id: req.payload.id });
+    let task = await Task.findOne({where:{ _id: id }});
+    let user = await User.findOne({where:{ _id: req.payload.id }});
     if (!task) {
       return res.status(400).json({ error: "Task does not exist" });
     }
 
-    if (!user || !task.user.equals(user._id)) {
+    if (!user || task.user != user._id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     for (let key in scheduledJobs) {
@@ -152,7 +159,7 @@ router.delete("/:task_id", isAuthenticated, async (req, res) => {
       }
     }
     console.log(scheduledJobs)
-    await Task.deleteOne({ _id: id });
+    await Task.destroy({where:{ _id: id }});
     return res.status(200).json({ message: "Deleted task successfully" });
   } catch (error) {
     console.log(error);
@@ -162,12 +169,12 @@ router.delete("/:task_id", isAuthenticated, async (req, res) => {
 
 router.get("/:task_id", isAuthenticated, async (req, res) => {
   try {
-    let task = await Task.findOne({ _id: req.params.task_id });
-    let user = await User.findOne({ _id: req.payload.id });
+    let task = await Task.findOne({where:{ _id: req.params.task_id }});
+    let user = await User.findOne({where:{ _id: req.payload.id }});
     if (!task) {
       return res.status(400).json({ error: "Task not found" });
     }
-    if (!user || !task.user.equals(user._id)) {
+    if (!user || task.user != user._id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     return res.status(200).json(task);

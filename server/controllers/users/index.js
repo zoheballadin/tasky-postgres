@@ -1,8 +1,8 @@
 import express from "express";
-import User from "../../models/Users/index.js";
+import User from "../../models/postgres/User.js";
 import config from "config";
 import bcrypt from "bcrypt";
-import Task from "../../models/Tasks/index.js";
+import Task from "../../models/postgres/Task.js"
 import sendMail from "../../utils/mailer.js";
 
 import {
@@ -38,7 +38,7 @@ router.post(
   async (req, res) => {
     try {
       let { email, firstname, lastname, phone, password, address } = req.body;
-      let findEmail = await User.findOne({ email: email });
+      let findEmail = await User.findOne({ where: { email: email} });
       if (findEmail) {
         return res.status(409).json({ error: "User already exists" });
       }
@@ -49,17 +49,18 @@ router.post(
         phone: randomString(20),
       };
 
-      let user = new User({
+       await User.create({
         email,
         firstname,
         lastname,
         phone,
         password: hashedPassword,
         address,
-        userverifyToken,
+        emailToken: userverifyToken.email,
+        phoneToken: userverifyToken.phone
       });
 
-      await user.save();
+
       await sendMail({
         text: `Use this link to verify your email: \n
         ${URL}/api/user/verify/email/${userverifyToken.email}`,
@@ -84,12 +85,12 @@ router.post(
 router.post("/login", loginValidation(), errorMiddleware, async (req, res) => {
   try {
     let { email, password } = req.body;
-    let findEmail = await User.findOne({ email: email });
+    let findEmail = await User.findOne({where: { email: email }});
     if (!findEmail) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (!findEmail.isVerified.email) {
+    if (!findEmail.emailStatus) {
       return res.status(403).json({ error: "Please verify your email first" });
     }
 
@@ -127,14 +128,15 @@ router.get("/auth", isAuthenticated, (req,res)=>{
 router.get("/verify/email/:emailtoken", async (req, res) => {
   try {
     let token = req.params.emailtoken;
-    let findUser = await User.findOne({ "userverifyToken.email": token });
+    let findUser = await User.findOne({where: {emailToken: token}});
     if (!findUser) {
       return res.status(400).json({ error: "User does not exist" });
     }
-    await User.updateOne(
-      { "userverifyToken.email": token },
-      { $set: { "isVerified.email": true } }
-    );
+    // await User.updateOne(
+    //   { "userverifyToken.email": token },
+    //   { $set: { "isVerified.email": true } }
+    // );
+    await User.update({emailStatus: true}, {where: {emailToken: token}})
     return res.status(200).json({ success: "Email verification Successfuly" });
   } catch (error) {
     console.log(error);
@@ -145,14 +147,15 @@ router.get("/verify/email/:emailtoken", async (req, res) => {
 router.get("/verify/phone/:phonetoken", async (req, res) => {
   try {
     let token = req.params.phonetoken;
-    let findUser = await User.findOne({ "userverifyToken.phone": token });
+    let findUser = await User.findOne({where: {phoneToken: token}});
     if (!findUser) {
       return res.status(400).json({ error: "User does not exist" });
     }
-    await User.updateOne(
-      { "userverifyToken.phone": token },
-      { $set: { "isVerified.phone": true } }
-    );
+    // await User.updateOne(
+    //   { "userverifyToken.phone": token },
+    //   { $set: { "isVerified.phone": true } }
+    // );
+    await User.update({phoneStatus: true}, {where: {phoneToken:  token}})
     return res.status(200).json({ success: "Phone verification Successfuly" });
   } catch (error) {
     console.log(error);
@@ -163,11 +166,11 @@ router.get("/verify/phone/:phonetoken", async (req, res) => {
 router.post("/resend/email", async (req, res) => {
   try {
     let email = req.body.email;
-    let findUser = await User.findOne({ email: email });
+    let findUser = await User.findOne({where: { email: email }});
     if (!findUser) {
       return res.status(401).json({ error: "User does not exist" });
     }
-    let token = findUser.userverifyToken.email;
+    let token = findUser.emailToken;
     await sendMail({
       text: `Use this link to verify your email: \n
         ${URL}/api/user/verify/email/${token}`,
@@ -185,11 +188,11 @@ router.post("/resend/email", async (req, res) => {
 router.post("/resend/phone", async (req, res) => {
   try {
     let phone = req.body.phone;
-    let findUser = await User.findOne({ phone: phone });
+    let findUser = await User.findOne({where: { phone: phone }});
     if (!findUser) {
       return res.status(401).json({ error: "User does not exist" });
     }
-    let token = findUser.userverifyToken.phone;
+    let token = findUser.phoneToken;
     await sendSMS({
       message: `Here is your verification link: \n
         ${URL}/api/user/verify/phone/${token}`,
@@ -205,11 +208,11 @@ router.post("/resend/phone", async (req, res) => {
 
 router.get("/tasks", isAuthenticated, async (req, res) => {
   try {
-    let user = await User.findOne({ _id: req.payload.id });
+    let user = await User.findOne({where: { _id: req.payload.id }});
     if (!user) {
       return res.status(400).json({ error: "User does not exist" });
     }
-    let tasks = await Task.find({ user: user._id });
+    let tasks = await Task.findAll({where: { user: user._id }});
     return res.status(200).json(tasks);
   } catch (error) {
     console.log(error);

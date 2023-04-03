@@ -1,7 +1,7 @@
 import express from "express";
 import config from "config"
-import dbConnect from "./dbConnect.js";
-
+import {dbConnect} from "./dbConnect.js";
+import "./models/postgres/relations.js"
 import userRoutes from "./controllers/users/index.js"
 import taskRoutes from "./controllers/tasks/index.js"
 

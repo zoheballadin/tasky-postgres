@@ -1,6 +1,6 @@
 {
   "name": "tasky-client",
-  
+  "proxy": "localhost:5001",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
